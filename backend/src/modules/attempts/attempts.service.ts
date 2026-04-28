@@ -426,9 +426,18 @@ export class AttemptsService {
       });
 
     const availabilityByExam = new Map(available.map((item) => [item.examId, item]));
+    const latestAttemptIdByExam = new Map<number, number>();
+    for (const [examId, examAttempts] of attemptsByExam.entries()) {
+      const latest = examAttempts[0];
+      if (latest) {
+        latestAttemptIdByExam.set(examId, latest.id);
+      }
+    }
+
     const history = attempts.map((attempt) => {
       const examMeta = availabilityByExam.get(attempt.examId);
-      const canRetake = Boolean(examMeta?.canStart);
+      const isLatest = latestAttemptIdByExam.get(attempt.examId) === attempt.id;
+      const canRetake = Boolean(examMeta?.canStart) && isLatest;
       const canViewResult = this.canStudentViewResult(attempt.exam, attempt.status);
       return {
         attemptId: attempt.id,
@@ -444,10 +453,59 @@ export class AttemptsService {
         attemptNo: attempt.attemptNo,
         canRetake,
         canViewResult,
+        isLatest,
       };
     });
 
-    return { available, history };
+    const grouped = Array.from(
+      new Set<number>([
+        ...available.map((item) => item.examId),
+        ...Array.from(attemptsByExam.keys()),
+      ]),
+    )
+      .map((examId) => {
+        const availableExam = availabilityByExam.get(examId);
+        const examAttempts = (attemptsByExam.get(examId) ?? []).map((attempt) => {
+          const isLatest = latestAttemptIdByExam.get(examId) === attempt.id;
+          const canViewResult = this.canStudentViewResult(attempt.exam, attempt.status);
+          return {
+            attemptId: attempt.id,
+            attemptNo: attempt.attemptNo,
+            status: attempt.status,
+            score: attempt.score,
+            startedAt: attempt.startedAt,
+            submittedAt: attempt.submittedAt,
+            wrongCount: attempt.details.filter((detail) => detail.isCorrect === false).length,
+            passScore: attempt.exam.passScore,
+            totalScore: this.examTotalScore(attempt.exam.examQuestions),
+            canViewResult,
+            canRetake: Boolean(availableExam?.canStart) && isLatest,
+            isLatest,
+          };
+        });
+        const latestAttempt = examAttempts[0] ?? null;
+        const fallbackExam = attemptsByExam.get(examId)?.[0]?.exam;
+
+        return {
+          examId,
+          title: availableExam?.title ?? fallbackExam?.title ?? `Exam #${examId}`,
+          durationMinutes: availableExam?.durationMinutes ?? fallbackExam?.durationMinutes ?? 0,
+          startsAt: availableExam?.startsAt ?? fallbackExam?.startsAt ?? null,
+          endsAt: availableExam?.endsAt ?? fallbackExam?.endsAt ?? null,
+          questionCount: availableExam?.questionCount ?? fallbackExam?.examQuestions.length ?? 0,
+          passScore: availableExam?.passScore ?? fallbackExam?.passScore ?? 0,
+          totalScore:
+            availableExam?.totalScore
+            ?? (fallbackExam ? this.examTotalScore(fallbackExam.examQuestions) : 0),
+          latestAttempt,
+          finalScore: latestAttempt?.score ?? null,
+          canRetake: Boolean(latestAttempt?.canRetake),
+          attempts: examAttempts,
+        };
+      })
+      .sort((a, b) => b.examId - a.examId);
+
+    return { available, history, grouped };
   }
 
   async myExamRecords(user: JwtUser, examId: number) {
@@ -464,6 +522,7 @@ export class AttemptsService {
       orderBy: [{ attemptNo: 'desc' }, { id: 'desc' }],
     });
     const totalScore = this.examTotalScore(exam.examQuestions);
+    const latestAttemptId = attempts[0]?.id ?? null;
     return {
       examId,
       examTitle: exam.title,
@@ -478,6 +537,7 @@ export class AttemptsService {
         startedAt: attempt.startedAt,
         submittedAt: attempt.submittedAt,
         canViewResult: this.canStudentViewResult(exam, attempt.status),
+        isLatest: latestAttemptId === attempt.id,
       })),
     };
   }

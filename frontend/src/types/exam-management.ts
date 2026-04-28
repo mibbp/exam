@@ -46,6 +46,19 @@ export interface ExamScoreboardRow {
   antiCheatViolationCount: number;
 }
 
+export interface ExamScoreboardResult {
+  total: number;
+  page: number;
+  pageSize: number;
+  latestOnly?: boolean;
+  stats?: {
+    participantCount: number;
+    avgScore: number;
+    passRate: number;
+  };
+  rows: ExamScoreboardRow[];
+}
+
 export interface ExamMonitorRow {
   attemptId: number;
   examId: number;

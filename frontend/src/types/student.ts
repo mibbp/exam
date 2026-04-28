@@ -35,6 +35,37 @@ export interface MyExamHistory {
   totalScore: number;
   canRetake: boolean;
   canViewResult: boolean;
+  isLatest?: boolean;
+}
+
+export interface MyExamGroupedAttempt {
+  attemptId: number;
+  attemptNo: number;
+  status: AttemptStatus;
+  score?: number | null;
+  startedAt?: string | null;
+  submittedAt?: string | null;
+  wrongCount: number;
+  passScore: number;
+  totalScore: number;
+  canRetake: boolean;
+  canViewResult: boolean;
+  isLatest: boolean;
+}
+
+export interface MyExamGrouped {
+  examId: number;
+  title: string;
+  durationMinutes: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  questionCount: number;
+  passScore: number;
+  totalScore: number;
+  latestAttempt: MyExamGroupedAttempt | null;
+  finalScore?: number | null;
+  canRetake: boolean;
+  attempts: MyExamGroupedAttempt[];
 }
 
 export interface ExamAttemptRecord {
@@ -46,6 +77,7 @@ export interface ExamAttemptRecord {
   startedAt?: string | null;
   submittedAt?: string | null;
   canViewResult: boolean;
+  isLatest?: boolean;
 }
 
 export interface MyExamRecordList {

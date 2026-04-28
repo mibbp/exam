@@ -179,6 +179,11 @@ export function StudentExamSessionPage() {
         </div>
         <div className="inline-actions">
           <MotionButtonShell>
+            <button type="button" className="soft-btn" onClick={() => navigate('/student/exams')}>
+              返回考试大厅
+            </button>
+          </MotionButtonShell>
+          <MotionButtonShell>
             <button type="button" className="soft-btn" disabled={currentIndex === 0} onClick={() => setCurrentIndex((index) => index - 1)}>
               上一题
             </button>

@@ -88,8 +88,16 @@ export class ExamsController {
     @Query('pageSize') pageSize?: string,
     @Query('keyword') keyword?: string,
     @Query('status') status?: string,
+    @Query('latestOnly') latestOnly?: string,
   ) {
-    return this.examsService.scoreboard(id, Number(page || 1), Number(pageSize || 20), keyword, status);
+    return this.examsService.scoreboard(
+      id,
+      Number(page || 1),
+      Number(pageSize || 20),
+      keyword,
+      status,
+      latestOnly === 'true' || latestOnly === '1',
+    );
   }
 
   @Get(':id/results/export')

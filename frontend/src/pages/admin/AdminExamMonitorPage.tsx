@@ -1,6 +1,7 @@
 ﻿import { App as AntApp, Button, Card, Input, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageMotion } from '../../components/PageMotion';
 import { usePermission } from '../../app/useAuth';
 import {
@@ -16,6 +17,7 @@ const refreshIntervalMs = 5000;
 
 export function AdminExamMonitorPage() {
   const { message } = AntApp.useApp();
+  const navigate = useNavigate();
   const canReview = usePermission('monitor.rejoin.review');
 
   const [exams, setExams] = useState<Exam[]>([]);
@@ -106,6 +108,7 @@ export function AdminExamMonitorPage() {
         title="考试监控"
         extra={(
           <Space>
+            <Button onClick={() => navigate('/admin/dashboard')}>返回首页</Button>
             <Select
               style={{ minWidth: 280 }}
               placeholder="选择考试"
@@ -260,4 +263,7 @@ export function AdminExamMonitorPage() {
     </PageMotion>
   );
 }
+
+
+
 

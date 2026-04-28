@@ -1,5 +1,5 @@
 ﻿import api from './client';
-import type { Exam, ExamMonitorResult, ExamRejoinRequestRow, ExamScoreboardRow, PagedResult } from '../types';
+import type { Exam, ExamMonitorResult, ExamRejoinRequestRow, ExamScoreboardResult, ExamScoreboardRow, PagedResult } from '../types';
 
 export async function listExams(params?: Record<string, unknown>) {
   const { data } = await api.get<PagedResult<Exam>>('/exams', { params });
@@ -38,7 +38,7 @@ export async function deleteExam(id: number) {
 }
 
 export async function examScoreboard(examId: number, params?: Record<string, unknown>) {
-  const { data } = await api.get<PagedResult<ExamScoreboardRow>>(`/exams/${examId}/scoreboard`, { params });
+  const { data } = await api.get<ExamScoreboardResult>(`/exams/${examId}/scoreboard`, { params });
   return data;
 }
 

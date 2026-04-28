@@ -1,16 +1,18 @@
 import { App as AntApp, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageMotion } from '../../components/PageMotion';
 import { usePermission } from '../../app/useAuth';
 import { closeExam, createExam, deleteExam, examScoreboard, listExams, publishExam, unpublishExam, updateExam } from '../../services/exams';
 import { listQuestions } from '../../services/questions';
 import { listRoles } from '../../services/roles';
 import { listUsers } from '../../services/users';
-import type { Exam, ExamScoreboardRow, PagedResult, Question, Role, UserRow } from '../../types';
+import type { Exam, ExamScoreboardResult, PagedResult, Question, Role, UserRow } from '../../types';
 
 export function ExamsPage() {
   const { message } = AntApp.useApp();
+  const navigate = useNavigate();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -20,8 +22,10 @@ export function ExamsPage() {
   const [editing, setEditing] = useState<Exam | null>(null);
   const [form] = Form.useForm();
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
-  const [scoreboard, setScoreboard] = useState<PagedResult<ExamScoreboardRow>>({ total: 0, page: 1, pageSize: 20, rows: [] });
+  const [scoreboard, setScoreboard] = useState<ExamScoreboardResult>({ total: 0, page: 1, pageSize: 20, rows: [] });
   const [scoreboardTitle, setScoreboardTitle] = useState('');
+  const [scoreboardExamId, setScoreboardExamId] = useState<number | null>(null);
+  const [scoreboardLatestOnly, setScoreboardLatestOnly] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [openTypeFilter, setOpenTypeFilter] = useState<string | undefined>();
@@ -49,6 +53,11 @@ export function ExamsPage() {
     }
   }
 
+  async function loadScoreboard(examId: number, latestOnly = scoreboardLatestOnly) {
+    const data = await examScoreboard(examId, { latestOnly });
+    setScoreboard(data);
+  }
+
   useEffect(() => {
     void load();
   }, []);
@@ -68,26 +77,31 @@ export function ExamsPage() {
       <Card
         className="glass-list-card admin-crud-card"
         title="考试管理"
-        extra={canCreate ? (
-          <Button
-            type="primary"
-            onClick={() => {
-              setEditing(null);
-              form.resetFields();
-              form.setFieldsValue({
-                openType: 'PUBLIC',
-                allowReview: true,
-                antiCheatEnabled: true,
-                antiCheatThreshold: 3,
-                maxAttempts: 1,
-                questionConfigs: [],
-              });
-              setOpen(true);
-            }}
-          >
-            创建考试
-          </Button>
-        ) : null}
+        extra={(
+          <Space>
+            <Button onClick={() => navigate('/admin/dashboard')}>返回首页</Button>
+            {canCreate ? (
+              <Button
+                type="primary"
+                onClick={() => {
+                  setEditing(null);
+                  form.resetFields();
+                  form.setFieldsValue({
+                    openType: 'PUBLIC',
+                    allowReview: true,
+                    antiCheatEnabled: true,
+                    antiCheatThreshold: 3,
+                    maxAttempts: 1,
+                    questionConfigs: [],
+                  });
+                  setOpen(true);
+                }}
+              >
+                创建考试
+              </Button>
+            ) : null}
+          </Space>
+        )}
       >
         <Space wrap className="filter-toolbar">
           <Input placeholder="按考试名/说明搜索" style={{ width: 260 }} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
@@ -140,7 +154,13 @@ export function ExamsPage() {
                   {canPublish && row.status !== 'PUBLISHED' ? <Button type="link" onClick={async () => { await publishExam(row.id); message.success('考试已发布'); await load(list.page, list.pageSize); }}>发布</Button> : null}
                   {canPublish && row.status === 'PUBLISHED' ? <Button type="link" onClick={async () => { await unpublishExam(row.id); message.success('已撤回发布'); await load(list.page, list.pageSize); }}>撤回</Button> : null}
                   {canClose && row.status !== 'CLOSED' ? <Button type="link" onClick={async () => { await closeExam(row.id); message.success('考试已关闭'); await load(list.page, list.pageSize); }}>关闭</Button> : null}
-                  {canResultsView ? <Button type="link" onClick={async () => { setScoreboardTitle(row.title); setScoreboard(await examScoreboard(row.id)); setScoreboardOpen(true); }}>成绩单</Button> : null}
+                  {canResultsView ? <Button type="link" onClick={async () => {
+                    setScoreboardTitle(row.title);
+                    setScoreboardExamId(row.id);
+                    setScoreboardLatestOnly(true);
+                    await loadScoreboard(row.id, true);
+                    setScoreboardOpen(true);
+                  }}>成绩单</Button> : null}
                   {canUpdate ? <Button type="link" danger onClick={async () => { await deleteExam(row.id); message.success('考试已删除'); await load(list.page, list.pageSize); }}>删除</Button> : null}
                 </Space>
               ),
@@ -210,7 +230,40 @@ export function ExamsPage() {
             </Form.List>
           </Form>
         </Modal>
-        <Drawer open={scoreboardOpen} title={`成绩单 · ${scoreboardTitle}`} width={760} onClose={() => setScoreboardOpen(false)}>
+        <Drawer
+          open={scoreboardOpen}
+          title={`成绩单 · ${scoreboardTitle}`}
+          width={760}
+          onClose={() => setScoreboardOpen(false)}
+          extra={<Button onClick={() => setScoreboardOpen(false)}>关闭</Button>}
+        >
+          <Space style={{ marginBottom: 12 }} align="center">
+            <span>统计口径：</span>
+            <Select
+              style={{ width: 220 }}
+              value={scoreboardLatestOnly ? 'latest' : 'all'}
+              options={[
+                { value: 'latest', label: '按每位学生最近一次' },
+                { value: 'all', label: '按全部作答记录' },
+              ]}
+              onChange={async (value) => {
+                const nextLatestOnly = value === 'latest';
+                setScoreboardLatestOnly(nextLatestOnly);
+                if (scoreboardExamId) {
+                  await loadScoreboard(scoreboardExamId, nextLatestOnly);
+                }
+              }}
+            />
+            <span>
+              人数：{scoreboard.stats?.participantCount ?? scoreboard.rows.length}
+            </span>
+            <span>
+              均分：{(scoreboard.stats?.avgScore ?? 0).toFixed(2)}
+            </span>
+            <span>
+              通过率：{((scoreboard.stats?.passRate ?? 0) * 100).toFixed(1)}%
+            </span>
+          </Space>
           <Table
             rowKey="id"
             dataSource={scoreboard.rows}

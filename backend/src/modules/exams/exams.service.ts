@@ -220,33 +220,105 @@ export class ExamsService {
     return { ok: true };
   }
 
-  async scoreboard(examId: number, page = 1, pageSize = 20, keyword?: string, status?: string) {
-    const where = {
-      examId,
-      ...(status ? { status: status as never } : {}),
-      ...(keyword
-        ? {
-            user: {
-              OR: [{ username: { contains: keyword } }, { displayName: { contains: keyword } }],
-            },
-          }
-        : {}),
-    };
-    const [total, rows] = await Promise.all([
-      this.prisma.examAttempt.count({ where }),
-      this.prisma.examAttempt.findMany({
-        where,
-        orderBy: [{ attemptNo: 'desc' }, { id: 'desc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: { user: true },
-      }),
-    ]);
+  async scoreboard(examId: number, page = 1, pageSize = 20, keyword?: string, status?: string, latestOnly = false) {
+    const exam = await this.prisma.exam.findUnique({
+      where: { id: examId },
+      select: { passScore: true },
+    });
+    if (!exam) {
+      throw new BadRequestException('Exam not found');
+    }
+    const passScore = exam.passScore;
+    const normalizedPage = Math.max(page || 1, 1);
+    const normalizedPageSize = Math.min(Math.max(pageSize || 20, 1), 100);
+    const userWhere = keyword
+      ? {
+          user: {
+            OR: [{ username: { contains: keyword } }, { displayName: { contains: keyword } }],
+          },
+        }
+      : {};
+
+    if (!latestOnly) {
+      const where = {
+        examId,
+        ...(status ? { status: status as never } : {}),
+        ...userWhere,
+      };
+      const [total, rows] = await Promise.all([
+        this.prisma.examAttempt.count({ where }),
+        this.prisma.examAttempt.findMany({
+          where,
+          orderBy: [{ attemptNo: 'desc' }, { id: 'desc' }],
+          skip: (normalizedPage - 1) * normalizedPageSize,
+          take: normalizedPageSize,
+          include: { user: true },
+        }),
+      ]);
+      const avgScore = rows.length > 0 ? rows.reduce((sum, item) => sum + (item.score ?? 0), 0) / rows.length : 0;
+      const passCount = rows.filter((item) => (item.score ?? 0) >= passScore).length;
+      return {
+        total,
+        page: normalizedPage,
+        pageSize: normalizedPageSize,
+        latestOnly: false,
+        stats: {
+          participantCount: rows.length,
+          avgScore,
+          passRate: rows.length > 0 ? passCount / rows.length : 0,
+        },
+        rows: rows.map((r) => ({
+          id: r.id,
+          attemptNo: r.attemptNo,
+          userId: r.userId,
+          username: r.user.username,
+          displayName: r.user.displayName,
+          status: r.status,
+          score: r.score,
+          startedAt: r.startedAt,
+          submittedAt: r.submittedAt,
+          antiCheatViolationCount: r.antiCheatViolationCount,
+        })),
+      };
+    }
+
+    const allRows = await this.prisma.examAttempt.findMany({
+      where: { examId, ...userWhere },
+      orderBy: [{ userId: 'asc' }, { attemptNo: 'desc' }, { id: 'desc' }],
+      include: { user: true },
+    });
+    const latestByUser = new Map<number, (typeof allRows)[number]>();
+    for (const row of allRows) {
+      if (!latestByUser.has(row.userId)) {
+        latestByUser.set(row.userId, row);
+      }
+    }
+    let latestRows = Array.from(latestByUser.values());
+    if (status) {
+      latestRows = latestRows.filter((item) => item.status === status);
+    }
+    latestRows.sort((a, b) => b.id - a.id);
+    const total = latestRows.length;
+    const pagedRows = latestRows.slice(
+      (normalizedPage - 1) * normalizedPageSize,
+      (normalizedPage - 1) * normalizedPageSize + normalizedPageSize,
+    );
+    const avgScore = latestRows.length > 0
+      ? latestRows.reduce((sum, item) => sum + (item.score ?? 0), 0) / latestRows.length
+      : 0;
+    const passCount = latestRows.filter((item) => (item.score ?? 0) >= passScore).length;
+
     return {
       total,
-      page,
-      pageSize,
-      rows: rows.map((r) => ({
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
+      latestOnly: true,
+      stats: {
+        participantCount: latestRows.length,
+        avgScore,
+        passRate: latestRows.length > 0 ? passCount / latestRows.length : 0,
+      },
+      rows: pagedRows.map((r) => ({
         id: r.id,
         attemptNo: r.attemptNo,
         userId: r.userId,

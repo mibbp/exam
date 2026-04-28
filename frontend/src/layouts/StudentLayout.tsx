@@ -1,18 +1,19 @@
-import { Avatar, Button, Space } from 'antd';
+﻿import { Avatar, Button, Space } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../app/useAuth';
 import companyLogo from '../assets/company-logo.svg';
 
-const items = [{ key: '/student/exams', label: '在线考试' }];
+const items = [{ key: '/student/exams', label: '考试大厅' }];
 
 export function StudentLayout() {
   const auth = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const current = items.find((item) => location.pathname.startsWith(item.key))?.key ?? '/student/exams';
-  const currentLabel = items.find((item) => item.key === current)?.label ?? '工作台';
+  const currentLabel = items.find((item) => item.key === current)?.label ?? '学生工作台';
   const displayName = auth.user?.displayName ?? auth.user?.username ?? '学生';
   const userInitial = displayName.slice(0, 1).toUpperCase();
+  const isHall = location.pathname === '/student/exams';
 
   return (
     <div className="app-shell app-shell-student">
@@ -50,10 +51,15 @@ export function StudentLayout() {
       <main className="app-main student-main-v2">
         <header className="app-header student-header-v2">
           <div>
-            <span className="student-header-subtitle-v2">学习工作台</span>
+            <span className="student-header-subtitle-v2">学生工作台</span>
             <h2 className="app-header-title">{currentLabel}</h2>
           </div>
           <Space className="app-header-actions">
+            {!isHall ? (
+              <Button className="ghost-btn student-ghost-btn-v2" onClick={() => navigate('/student/exams')}>
+                返回大厅
+              </Button>
+            ) : null}
             <Button className="ghost-btn student-ghost-btn-v2" onClick={() => void auth.clearSession()}>
               退出登录
             </Button>
