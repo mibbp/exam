@@ -1,5 +1,13 @@
 ﻿import api from './client';
-import type { Exam, ExamMonitorResult, ExamRejoinRequestRow, ExamScoreboardResult, ExamScoreboardRow, PagedResult } from '../types';
+import type {
+  AntiCheatLogRow,
+  Exam,
+  ExamMonitorResult,
+  ExamRejoinRequestRow,
+  ExamScoreboardResult,
+  ExamScoreboardRow,
+  PagedResult,
+} from '../types';
 
 export async function listExams(params?: Record<string, unknown>) {
   const { data } = await api.get<PagedResult<Exam>>('/exams', { params });
@@ -64,6 +72,11 @@ export async function approveRejoinRequest(id: number, reviewNote?: string) {
 
 export async function rejectRejoinRequest(id: number, reviewNote?: string) {
   const { data } = await api.post<ExamRejoinRequestRow>(`/rejoin-requests/${id}/reject`, { reviewNote });
+  return data;
+}
+
+export async function antiCheatLogs(params?: Record<string, unknown>) {
+  const { data } = await api.get<PagedResult<AntiCheatLogRow>>('/anti-cheat/events', { params });
   return data;
 }
 

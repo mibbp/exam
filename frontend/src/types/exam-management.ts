@@ -59,6 +59,21 @@ export interface ExamScoreboardResult {
   rows: ExamScoreboardRow[];
 }
 
+export interface AntiCheatLogRow {
+  id: number;
+  createdAt: string;
+  eventType: string;
+  message?: string | null;
+  attemptId: number;
+  examId: number;
+  examTitle: string;
+  userId: number;
+  username: string;
+  displayName?: string | null;
+  attemptStatus: string;
+  forcedSubmitted: boolean;
+}
+
 export interface ExamMonitorRow {
   attemptId: number;
   examId: number;

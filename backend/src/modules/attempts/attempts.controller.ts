@@ -19,6 +19,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { RejoinRequestsService } from '../rejoin-requests/rejoin-requests.service';
 import { CreateRejoinRequestDto } from '../rejoin-requests/dto/create-rejoin-request.dto';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -75,6 +76,12 @@ export class AttemptsController {
     return this.attemptsService.myExams(user);
   }
 
+  @Get('student/dashboard')
+  @Roles('STUDENT')
+  studentDashboard(@CurrentUser() user: JwtUser) {
+    return this.attemptsService.studentDashboard(user);
+  }
+
   @Get('my-exams/:examId/records')
   @Roles('STUDENT')
   myExamRecords(@CurrentUser() user: JwtUser, @Param('examId', ParseIntPipe) examId: number) {
@@ -94,6 +101,25 @@ export class AttemptsController {
     @CurrentUser() user: JwtUser,
   ) {
     return this.attemptsService.antiCheatEvent(body.attemptId, user.sub, body.eventType, body.message);
+  }
+
+  @Get('anti-cheat/events')
+  @Roles('ADMIN')
+  @Permissions('monitor.view')
+  antiCheatLogs(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('keyword') keyword?: string,
+    @Query('examId') examId?: string,
+    @Query('eventType') eventType?: string,
+  ) {
+    return this.attemptsService.antiCheatLogs({
+      page: Number(page || 1),
+      pageSize: Number(pageSize || 20),
+      keyword,
+      examId: examId ? Number(examId) : undefined,
+      eventType,
+    });
   }
 
   @Post('attempts/:id/rejoin-requests')

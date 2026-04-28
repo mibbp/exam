@@ -15,10 +15,13 @@ const UsersPage = lazy(() => import('./pages/admin/UsersPage').then((module) => 
 const ExamsPage = lazy(() => import('./pages/admin/ExamsPage').then((module) => ({ default: module.ExamsPage })));
 const AdminExamMonitorPage = lazy(() => import('./pages/admin/AdminExamMonitorPage').then((module) => ({ default: module.AdminExamMonitorPage })));
 const StudentExamHallPage = lazy(() => import('./pages/student/StudentExamHallPage').then((module) => ({ default: module.StudentExamHallPage })));
+const StudentDashboardPage = lazy(() => import('./pages/student/StudentDashboardPage').then((module) => ({ default: module.StudentDashboardPage })));
+const StudentHistoryPage = lazy(() => import('./pages/student/StudentHistoryPage').then((module) => ({ default: module.StudentHistoryPage })));
 const StudentExamCheckPage = lazy(() => import('./pages/student/StudentExamCheckPage').then((module) => ({ default: module.StudentExamCheckPage })));
 const StudentExamSessionPage = lazy(() => import('./pages/student/StudentExamSessionPage').then((module) => ({ default: module.StudentExamSessionPage })));
 const StudentAttemptResultPage = lazy(() => import('./pages/student/StudentAttemptResultPage').then((module) => ({ default: module.StudentAttemptResultPage })));
 const StudentWrongQuestionsPage = lazy(() => import('./pages/student/StudentWrongQuestionsPage').then((module) => ({ default: module.StudentWrongQuestionsPage })));
+const AdminAntiCheatLogsPage = lazy(() => import('./pages/admin/AdminAntiCheatLogsPage').then((module) => ({ default: module.AdminAntiCheatLogsPage })));
 
 function RouteFallback() {
   return (
@@ -44,14 +47,17 @@ export default function App() {
                 <Route element={<RequirePermission permission="questions.view" />}><Route path="questions" element={<QuestionsPage />} /></Route>
                 <Route element={<RequirePermission permission="exams.view" />}><Route path="exams" element={<ExamsPage />} /></Route>
                 <Route element={<RequirePermission permission="monitor.view" />}><Route path="exam-monitor" element={<AdminExamMonitorPage />} /></Route>
+                <Route element={<RequirePermission permission="monitor.view" />}><Route path="anti-cheat-logs" element={<AdminAntiCheatLogsPage />} /></Route>
                 <Route element={<RequirePermission permission="roles.view" />}><Route path="access/roles" element={<RolesPage />} /></Route>
                 <Route element={<RequirePermission permission="users.view" />}><Route path="access/users" element={<UsersPage />} /></Route>
               </Route>
             </Route>
             <Route element={<RequireAuth role="STUDENT" />}>
               <Route path="/student" element={<StudentLayout />}>
-                <Route index element={<Navigate to="/student/exams" replace />} />
+                <Route index element={<Navigate to="/student/dashboard" replace />} />
+                <Route path="dashboard" element={<StudentDashboardPage />} />
                 <Route path="exams" element={<StudentExamHallPage />} />
+                <Route path="history" element={<StudentHistoryPage />} />
                 <Route path="exams/:examId/check" element={<StudentExamCheckPage />} />
                 <Route path="attempts/:attemptId" element={<StudentExamSessionPage />} />
                 <Route path="attempts/:attemptId/result" element={<StudentAttemptResultPage />} />

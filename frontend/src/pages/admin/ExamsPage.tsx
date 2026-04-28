@@ -1,14 +1,41 @@
-import { App as AntApp, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, Typography } from 'antd';
+﻿import {
+  App as AntApp,
+  Button,
+  Card,
+  DatePicker,
+  Drawer,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+} from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ActionTextButton } from '../../components/ActionTextButton';
+import { DataStateTable } from '../../components/DataStateTable';
 import { PageMotion } from '../../components/PageMotion';
 import { usePermission } from '../../app/useAuth';
-import { closeExam, createExam, deleteExam, examScoreboard, listExams, publishExam, unpublishExam, updateExam } from '../../services/exams';
+import { getAttemptResult } from '../../services/attempts';
+import {
+  closeExam,
+  createExam,
+  deleteExam,
+  examScoreboard,
+  listExams,
+  publishExam,
+  unpublishExam,
+  updateExam,
+} from '../../services/exams';
 import { listQuestions } from '../../services/questions';
 import { listRoles } from '../../services/roles';
 import { listUsers } from '../../services/users';
-import type { Exam, ExamScoreboardResult, PagedResult, Question, Role, UserRow } from '../../types';
+import type { AttemptResult, Exam, ExamScoreboardResult, PagedResult, Question, Role, UserRow } from '../../types';
 
 export function ExamsPage() {
   const { message } = AntApp.useApp();
@@ -26,6 +53,9 @@ export function ExamsPage() {
   const [scoreboardTitle, setScoreboardTitle] = useState('');
   const [scoreboardExamId, setScoreboardExamId] = useState<number | null>(null);
   const [scoreboardLatestOnly, setScoreboardLatestOnly] = useState(true);
+  const [attemptDetailOpen, setAttemptDetailOpen] = useState(false);
+  const [attemptDetailLoading, setAttemptDetailLoading] = useState(false);
+  const [attemptDetail, setAttemptDetail] = useState<AttemptResult | null>(null);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [openTypeFilter, setOpenTypeFilter] = useState<string | undefined>();
@@ -65,6 +95,7 @@ export function ExamsPage() {
   const questionOptions = useMemo(() => questions.map((question) => ({ value: question.id, label: `${question.content.slice(0, 32)}...` })), [questions]);
   const roleOptions = useMemo(() => roles.map((role) => ({ value: role.id, label: role.name })), [roles]);
   const userOptions = useMemo(() => users.map((user) => ({ value: user.id, label: user.displayName || user.username })), [users]);
+
   const filteredRows = useMemo(() => list.rows.filter((row) => {
     if (statusFilter && row.status !== statusFilter) return false;
     if (openTypeFilter && row.openType !== openTypeFilter) return false;
@@ -105,43 +136,29 @@ export function ExamsPage() {
       >
         <Space wrap className="filter-toolbar">
           <Input placeholder="按考试名/说明搜索" style={{ width: 260 }} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-          <Select
-            allowClear
-            placeholder="状态"
-            style={{ width: 140 }}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[{ value: 'DRAFT', label: '草稿' }, { value: 'PUBLISHED', label: '已发布' }, { value: 'CLOSED', label: '已关闭' }]}
-          />
-          <Select
-            allowClear
-            placeholder="开放范围"
-            style={{ width: 160 }}
-            value={openTypeFilter}
-            onChange={setOpenTypeFilter}
-            options={[{ value: 'PUBLIC', label: '全员开放' }, { value: 'USERS', label: '指定用户' }, { value: 'ROLES', label: '指定角色' }]}
-          />
+          <Select allowClear placeholder="状态" style={{ width: 140 }} value={statusFilter} onChange={setStatusFilter} options={[{ value: 'DRAFT', label: '草稿' }, { value: 'PUBLISHED', label: '已发布' }, { value: 'CLOSED', label: '已关闭' }]} />
+          <Select allowClear placeholder="开放范围" style={{ width: 160 }} value={openTypeFilter} onChange={setOpenTypeFilter} options={[{ value: 'PUBLIC', label: '全员开放' }, { value: 'USERS', label: '指定用户' }, { value: 'ROLES', label: '指定角色' }]} />
         </Space>
-        <Table
+        <DataStateTable
           rowKey="id"
           loading={loading}
           dataSource={filteredRows}
           scroll={{ x: 1180 }}
-          locale={{ emptyText: '暂无考试数据' }}
-          pagination={{ current: list.page, pageSize: list.pageSize, total: filteredRows.length, onChange: (p, ps) => void load(p, ps) }}
+          localeEmptyText="暂无考试数据"
+          pagination={{ current: list.page, pageSize: list.pageSize, total: filteredRows.length, onChange: (p: number, ps: number) => void load(p, ps) }}
           columns={[
             { title: '考试名称', dataIndex: 'title' },
-            { title: '总分', render: (_, row) => row.examQuestions.reduce((sum, item) => sum + (item.scoreOverride || 0), 0) },
+            { title: '总分', render: (_: unknown, row: Exam) => row.examQuestions.reduce((sum, item) => sum + (item.scoreOverride || 0), 0) },
             { title: '及格分', dataIndex: 'passScore' },
-            { title: '人数', render: (_, row) => row._count?.attempts ?? 0 },
-            { title: '开放范围', dataIndex: 'openType', render: (value) => <Tag color="blue">{value}</Tag> },
-            { title: '状态', dataIndex: 'status', render: (value) => <Tag color={value === 'PUBLISHED' ? 'green' : value === 'CLOSED' ? 'default' : 'gold'}>{value === 'DRAFT' ? '草稿' : value === 'PUBLISHED' ? '已发布' : '已关闭'}</Tag> },
-            { title: '时间', render: (_, row) => `${row.startsAt ? dayjs(row.startsAt).format('YYYY-MM-DD HH:mm') : '不限'} - ${row.endsAt ? dayjs(row.endsAt).format('YYYY-MM-DD HH:mm') : '不限'}` },
+            { title: '人次', render: (_: unknown, row: Exam) => row._count?.attempts ?? 0 },
+            { title: '开放范围', dataIndex: 'openType', render: (value: string) => <Tag color="blue">{value}</Tag> },
+            { title: '状态', dataIndex: 'status', render: (value: string) => <Tag color={value === 'PUBLISHED' ? 'green' : value === 'CLOSED' ? 'default' : 'gold'}>{value === 'DRAFT' ? '草稿' : value === 'PUBLISHED' ? '已发布' : '已关闭'}</Tag> },
+            { title: '时间', render: (_: unknown, row: Exam) => `${row.startsAt ? dayjs(row.startsAt).format('YYYY-MM-DD HH:mm') : '不限'} - ${row.endsAt ? dayjs(row.endsAt).format('YYYY-MM-DD HH:mm') : '不限'}` },
             {
               title: '操作',
-              render: (_, row) => (
+              render: (_: unknown, row: Exam) => (
                 <Space size={0} wrap>
-                  {canUpdate ? <Button type="link" onClick={() => {
+                  {canUpdate ? <ActionTextButton tooltip="编辑考试" onClick={() => {
                     setEditing(row);
                     form.setFieldsValue({
                       ...row,
@@ -150,24 +167,19 @@ export function ExamsPage() {
                       questionConfigs: row.examQuestions.map((item) => ({ questionId: item.questionId, score: item.scoreOverride || 0 })),
                     });
                     setOpen(true);
-                  }}>编辑</Button> : null}
-                  {canPublish && row.status !== 'PUBLISHED' ? <Button type="link" onClick={async () => { await publishExam(row.id); message.success('考试已发布'); await load(list.page, list.pageSize); }}>发布</Button> : null}
-                  {canPublish && row.status === 'PUBLISHED' ? <Button type="link" onClick={async () => { await unpublishExam(row.id); message.success('已撤回发布'); await load(list.page, list.pageSize); }}>撤回</Button> : null}
-                  {canClose && row.status !== 'CLOSED' ? <Button type="link" onClick={async () => { await closeExam(row.id); message.success('考试已关闭'); await load(list.page, list.pageSize); }}>关闭</Button> : null}
-                  {canResultsView ? <Button type="link" onClick={async () => {
-                    setScoreboardTitle(row.title);
-                    setScoreboardExamId(row.id);
-                    setScoreboardLatestOnly(true);
-                    await loadScoreboard(row.id, true);
-                    setScoreboardOpen(true);
-                  }}>成绩单</Button> : null}
-                  {canUpdate ? <Button type="link" danger onClick={async () => { await deleteExam(row.id); message.success('考试已删除'); await load(list.page, list.pageSize); }}>删除</Button> : null}
+                  }}>编辑</ActionTextButton> : null}
+                  {canPublish && row.status !== 'PUBLISHED' ? <ActionTextButton tooltip="发布考试" onClick={async () => { await publishExam(row.id); message.success('考试已发布'); await load(list.page, list.pageSize); }}>发布</ActionTextButton> : null}
+                  {canPublish && row.status === 'PUBLISHED' ? <ActionTextButton tooltip="撤回发布" onClick={async () => { await unpublishExam(row.id); message.success('已撤回发布'); await load(list.page, list.pageSize); }}>撤回</ActionTextButton> : null}
+                  {canClose && row.status !== 'CLOSED' ? <ActionTextButton tooltip="关闭考试" onClick={async () => { await closeExam(row.id); message.success('考试已关闭'); await load(list.page, list.pageSize); }}>关闭</ActionTextButton> : null}
+                  {canResultsView ? <ActionTextButton tooltip="查看成绩单" onClick={async () => { setScoreboardTitle(row.title); setScoreboardExamId(row.id); setScoreboardLatestOnly(true); await loadScoreboard(row.id, true); setScoreboardOpen(true); }}>成绩单</ActionTextButton> : null}
+                  {canUpdate ? <ActionTextButton tooltip="删除考试" danger onClick={async () => { await deleteExam(row.id); message.success('考试已删除'); await load(list.page, list.pageSize); }}>删除</ActionTextButton> : null}
                 </Space>
               ),
             },
           ]}
         />
-        <Modal open={open} title={editing ? '编辑考试' : '创建考试'} width={860} onCancel={() => setOpen(false)} onOk={() => form.submit()} destroyOnClose>
+
+        <Modal open={open} title={editing ? '编辑考试' : '创建考试'} width={860} onCancel={() => setOpen(false)} onOk={() => form.submit()} destroyOnClose okText="保存" cancelText="取消">
           <Form
             form={form}
             layout="vertical"
@@ -230,53 +242,78 @@ export function ExamsPage() {
             </Form.List>
           </Form>
         </Modal>
-        <Drawer
-          open={scoreboardOpen}
-          title={`成绩单 · ${scoreboardTitle}`}
-          width={760}
-          onClose={() => setScoreboardOpen(false)}
-          extra={<Button onClick={() => setScoreboardOpen(false)}>关闭</Button>}
-        >
+
+        <Drawer open={scoreboardOpen} title={`成绩单 · ${scoreboardTitle}`} width={760} onClose={() => setScoreboardOpen(false)} extra={<Button onClick={() => setScoreboardOpen(false)}>关闭</Button>}>
           <Space style={{ marginBottom: 12 }} align="center">
             <span>统计口径：</span>
             <Select
               style={{ width: 220 }}
               value={scoreboardLatestOnly ? 'latest' : 'all'}
-              options={[
-                { value: 'latest', label: '按每位学生最近一次' },
-                { value: 'all', label: '按全部作答记录' },
-              ]}
+              options={[{ value: 'latest', label: '按每位学生最近一次' }, { value: 'all', label: '按全部作答记录' }]}
               onChange={async (value) => {
                 const nextLatestOnly = value === 'latest';
                 setScoreboardLatestOnly(nextLatestOnly);
-                if (scoreboardExamId) {
-                  await loadScoreboard(scoreboardExamId, nextLatestOnly);
-                }
+                if (scoreboardExamId) await loadScoreboard(scoreboardExamId, nextLatestOnly);
               }}
             />
-            <span>
-              人数：{scoreboard.stats?.participantCount ?? scoreboard.rows.length}
-            </span>
-            <span>
-              均分：{(scoreboard.stats?.avgScore ?? 0).toFixed(2)}
-            </span>
-            <span>
-              通过率：{((scoreboard.stats?.passRate ?? 0) * 100).toFixed(1)}%
-            </span>
+            <span>人数：{scoreboard.stats?.participantCount ?? scoreboard.rows.length}</span>
+            <span>均分：{(scoreboard.stats?.avgScore ?? 0).toFixed(2)}</span>
+            <span>通过率：{((scoreboard.stats?.passRate ?? 0) * 100).toFixed(1)}%</span>
           </Space>
-          <Table
+
+          <DataStateTable
             rowKey="id"
+            loading={loading}
             dataSource={scoreboard.rows}
             pagination={false}
             columns={[
-              { title: '用户', render: (_, row) => row.displayName || row.username },
+              { title: '用户', render: (_: unknown, row: { displayName?: string | null; username: string }) => row.displayName || row.username },
               { title: '第几次', dataIndex: 'attemptNo' },
               { title: '状态', dataIndex: 'status' },
               { title: '分数', dataIndex: 'score' },
-              { title: '开始时间', render: (_, row) => row.startedAt ? dayjs(row.startedAt).format('YYYY-MM-DD HH:mm:ss') : '-' },
-              { title: '提交时间', render: (_, row) => row.submittedAt ? dayjs(row.submittedAt).format('YYYY-MM-DD HH:mm:ss') : '-' },
+              { title: '开始时间', render: (_: unknown, row: { startedAt?: string | null }) => row.startedAt ? dayjs(row.startedAt).format('YYYY-MM-DD HH:mm:ss') : '-' },
+              { title: '提交时间', render: (_: unknown, row: { submittedAt?: string | null }) => row.submittedAt ? dayjs(row.submittedAt).format('YYYY-MM-DD HH:mm:ss') : '-' },
+              {
+                title: '答卷',
+                render: (_: unknown, row: { id: number }) => (
+                  <ActionTextButton
+                    tooltip="查看答卷明细"
+                    onClick={async () => {
+                      setAttemptDetailOpen(true);
+                      setAttemptDetailLoading(true);
+                      try {
+                        setAttemptDetail(await getAttemptResult(row.id));
+                      } finally {
+                        setAttemptDetailLoading(false);
+                      }
+                    }}
+                  >
+                    查看答卷
+                  </ActionTextButton>
+                ),
+              },
             ]}
           />
+        </Drawer>
+
+        <Drawer open={attemptDetailOpen} width={860} title="答卷明细" onClose={() => setAttemptDetailOpen(false)}>
+          {attemptDetailLoading ? <div className="native-loading">加载中...</div> : null}
+          {!attemptDetailLoading && !attemptDetail ? <div className="native-empty-state"><h3>暂无答卷明细</h3></div> : null}
+          {!attemptDetailLoading && attemptDetail ? (
+            <div className="student-stack">
+              <h3>{String((attemptDetail as { examTitle?: string }).examTitle ?? '')}</h3>
+              {((attemptDetail as { questions?: Array<Record<string, unknown>> }).questions ?? []).map((q, idx) => (
+                <article key={String(q.questionId ?? idx)} className="native-card student-stack">
+                  <h4>第 {idx + 1} 题</h4>
+                  <p>{String(q.content ?? '')}</p>
+                  <p>学生答案：{String(q.myAnswer ?? '-')}</p>
+                  <p>正确答案：{String(q.answer ?? '-')}</p>
+                  <p>得分：{String(q.score ?? 0)}/{String(q.fullScore ?? 0)}</p>
+                  <p className="muted-text">解析：{String(q.analysis ?? '')}</p>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </Drawer>
       </Card>
     </PageMotion>

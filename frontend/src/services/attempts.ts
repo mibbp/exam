@@ -1,5 +1,14 @@
 ﻿import api from './client';
-import type { AttemptDetail, AttemptResult, MyExamAvailable, MyExamGrouped, MyExamHistory, MyExamRecordList, WrongQuestion } from '../types';
+import type {
+  AttemptDetail,
+  AttemptResult,
+  MyExamAvailable,
+  MyExamGrouped,
+  MyExamHistory,
+  MyExamRecordList,
+  StudentDashboardOverview,
+  WrongQuestion,
+} from '../types';
 
 export async function startAttempt(examId: number) {
   const { data } = await api.post('/attempts/start', { examId });
@@ -38,6 +47,11 @@ export async function reportAntiCheat(attemptId: number, eventType: string, mess
 export async function listMyExams() {
   const { data } = await api.get('/my-exams');
   return data as { available: MyExamAvailable[]; history: MyExamHistory[]; grouped?: MyExamGrouped[] };
+}
+
+export async function getStudentDashboard() {
+  const { data } = await api.get<StudentDashboardOverview>('/student/dashboard');
+  return data;
 }
 
 export async function listMyExamRecords(examId: number) {

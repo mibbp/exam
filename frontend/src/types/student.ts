@@ -68,6 +68,32 @@ export interface MyExamGrouped {
   attempts: MyExamGroupedAttempt[];
 }
 
+export interface StudentDashboardOverview {
+  summary: {
+    totalAttempts: number;
+    latestScore: number | null;
+    latestStatus: AttemptStatus | null;
+    passRate: number;
+    pendingRejoinCount: number;
+  };
+  latestAttempt: {
+    attemptId: number;
+    examId: number;
+    examTitle: string;
+    score: number | null;
+    status: AttemptStatus;
+    submittedAt?: string | null;
+    totalScore: number;
+  } | null;
+  shortcuts: {
+    continueAttempt: {
+      attemptId: number;
+      examId: number;
+      examTitle: string;
+    } | null;
+  };
+}
+
 export interface ExamAttemptRecord {
   attemptId: number;
   attemptNo: number;

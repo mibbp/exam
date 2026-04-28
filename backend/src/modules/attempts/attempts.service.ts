@@ -567,6 +567,123 @@ export class AttemptsService {
     return rows;
   }
 
+  async studentDashboard(user: JwtUser) {
+    const attempts = await this.prisma.examAttempt.findMany({
+      where: { userId: user.sub },
+      orderBy: [{ id: 'desc' }],
+      include: {
+        exam: { include: { examQuestions: true } },
+      },
+    });
+
+    const latestAttempt = attempts[0] ?? null;
+    const submittedAttempts = attempts.filter((item) => item.status !== AttemptStatus.IN_PROGRESS);
+    const passedCount = submittedAttempts.filter((item) => (item.score ?? 0) >= item.exam.passScore).length;
+    const passRate = submittedAttempts.length > 0 ? passedCount / submittedAttempts.length : 0;
+    const pendingRejoinCount = await this.prisma.examRejoinRequest.count({
+      where: { studentId: user.sub, status: 'PENDING' },
+    });
+    const inProgressAttempt = attempts.find((item) => item.status === AttemptStatus.IN_PROGRESS) ?? null;
+
+    return {
+      summary: {
+        totalAttempts: attempts.length,
+        latestScore: latestAttempt?.score ?? null,
+        latestStatus: latestAttempt?.status ?? null,
+        passRate,
+        pendingRejoinCount,
+      },
+      latestAttempt: latestAttempt
+        ? {
+            attemptId: latestAttempt.id,
+            examId: latestAttempt.examId,
+            examTitle: latestAttempt.exam.title,
+            score: latestAttempt.score,
+            status: latestAttempt.status,
+            submittedAt: latestAttempt.submittedAt,
+            totalScore: this.examTotalScore(latestAttempt.exam.examQuestions),
+          }
+        : null,
+      shortcuts: {
+        continueAttempt: inProgressAttempt
+          ? {
+              attemptId: inProgressAttempt.id,
+              examId: inProgressAttempt.examId,
+              examTitle: inProgressAttempt.exam.title,
+            }
+          : null,
+      },
+    };
+  }
+
+  async antiCheatLogs(params: {
+    page: number;
+    pageSize: number;
+    keyword?: string;
+    examId?: number;
+    eventType?: string;
+  }) {
+    const page = Math.max(params.page || 1, 1);
+    const pageSize = Math.min(Math.max(params.pageSize || 20, 1), 100);
+    const where = {
+      ...(params.eventType ? { eventType: params.eventType } : {}),
+      ...(params.examId || params.keyword
+        ? {
+            attempt: {
+              ...(params.examId ? { examId: params.examId } : {}),
+              ...(params.keyword
+                ? {
+                    user: {
+                      OR: [
+                        { username: { contains: params.keyword } },
+                        { displayName: { contains: params.keyword } },
+                      ],
+                    },
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    };
+    const [total, rows] = await Promise.all([
+      this.prisma.antiCheatEvent.count({ where }),
+      this.prisma.antiCheatEvent.findMany({
+        where,
+        orderBy: [{ id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          attempt: {
+            include: {
+              exam: { select: { id: true, title: true } },
+              user: { select: { id: true, username: true, displayName: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      page,
+      pageSize,
+      rows: rows.map((item) => ({
+        id: item.id,
+        createdAt: item.createdAt,
+        eventType: item.eventType,
+        message: item.message,
+        attemptId: item.attemptId,
+        examId: item.attempt.examId,
+        examTitle: item.attempt.exam.title,
+        userId: item.attempt.userId,
+        username: item.attempt.user.username,
+        displayName: item.attempt.user.displayName,
+        attemptStatus: item.attempt.status,
+        forcedSubmitted: item.attempt.status === AttemptStatus.FORCED_SUBMITTED,
+      })),
+    };
+  }
+
   async antiCheatEvent(attemptId: number, userId: number, eventType: string, message?: string) {
     const attempt = await this.prisma.examAttempt.findUnique({ where: { id: attemptId }, include: { exam: true } });
     if (!attempt || attempt.userId !== userId) {

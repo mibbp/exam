@@ -18,6 +18,7 @@ const items = [
   { key: '/admin/questions', label: '试题管理', permission: 'questions.view', icon: FileTextOutlined },
   { key: '/admin/exams', label: '考试管理', permission: 'exams.view', icon: TrophyOutlined },
   { key: '/admin/exam-monitor', label: '考试监控', permission: 'monitor.view', icon: AlertOutlined },
+  { key: '/admin/anti-cheat-logs', label: '反作弊日志', permission: 'monitor.view', icon: AlertOutlined },
   { key: '/admin/access/roles', label: '角色管理', permission: 'roles.view', icon: TeamOutlined },
   { key: '/admin/access/users', label: '用户管理', permission: 'users.view', icon: TeamOutlined },
 ];

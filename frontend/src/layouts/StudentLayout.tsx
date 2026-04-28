@@ -3,13 +3,17 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../app/useAuth';
 import companyLogo from '../assets/company-logo.svg';
 
-const items = [{ key: '/student/exams', label: '考试大厅' }];
+const items = [
+  { key: '/student/dashboard', label: '个人总览' },
+  { key: '/student/exams', label: '考试大厅' },
+  { key: '/student/history', label: '历史成绩单' },
+];
 
 export function StudentLayout() {
   const auth = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const current = items.find((item) => location.pathname.startsWith(item.key))?.key ?? '/student/exams';
+  const current = items.find((item) => location.pathname.startsWith(item.key))?.key ?? '/student/dashboard';
   const currentLabel = items.find((item) => item.key === current)?.label ?? '学生工作台';
   const displayName = auth.user?.displayName ?? auth.user?.username ?? '学生';
   const userInitial = displayName.slice(0, 1).toUpperCase();
@@ -39,13 +43,13 @@ export function StudentLayout() {
             </button>
           ))}
         </nav>
-        <div className="app-user-section student-user-section-v2">
+        <button type="button" className="app-user-section student-user-section-v2" onClick={() => navigate('/student/dashboard')}>
           <div className="app-user-info student-user-info-v2">
             <span className="app-user-name">{displayName}</span>
             <span className="app-user-role">学生账号</span>
           </div>
           <Avatar className="student-user-avatar-v2">{userInitial}</Avatar>
-        </div>
+        </button>
       </aside>
 
       <main className="app-main student-main-v2">
