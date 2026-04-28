@@ -1,0 +1,52 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: exam_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-exam_db}
+      MYSQL_USER: ${MYSQL_USER:-exam_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-exam_pass}
+      TZ: UTC
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    ports:
+      - "13306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ../backend
+    container_name: exam_backend
+    restart: always
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: mysql://${MYSQL_USER:-exam_user}:${MYSQL_PASSWORD:-exam_pass}@mysql:3306/${MYSQL_DATABASE:-exam_db}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@123}
+      SEED_STUDENT_PASSWORD: ${SEED_STUDENT_PASSWORD:-Student@123}
+      TZ: UTC
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../frontend
+    container_name: exam_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "18080:80"
+
+volumes:
+  mysql_data:

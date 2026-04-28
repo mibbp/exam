@@ -1,0 +1,19 @@
+# API 清单
+
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `GET /api/questions`
+- `POST /api/questions`
+- `PATCH /api/questions/:id`
+- `DELETE /api/questions/:id`
+- `POST /api/questions/import`
+- `GET /api/exams`
+- `POST /api/exams`
+- `POST /api/exams/:id/publish`
+- `POST /api/attempts/start`
+- `PATCH /api/attempts/:id/answers/:questionId`
+- `POST /api/attempts/:id/submit`
+- `GET /api/attempts/:id/result`
+- `GET /api/analytics/exams/:id`
+- `POST /api/anti-cheat/events`

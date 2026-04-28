@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE
+  TRUE_FALSE
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  FORCED_SUBMITTED
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum RepositoryStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum QuestionStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum OpenType {
+  PUBLIC
+  USERS
+  ROLES
+}
+
+enum ShowResultMode {
+  IMMEDIATE
+  AFTER_SUBMIT
+  MANUAL
+}
+
+enum RejoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id              Int                  @id @default(autoincrement())
+  username        String               @unique
+  displayName     String?
+  passwordHash    String
+  role            UserRole
+  status          UserStatus           @default(ACTIVE)
+  lastLoginAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  refreshSession  RefreshSession[]
+  attempts        ExamAttempt[]
+  rejoinRequests  ExamRejoinRequest[]  @relation("RejoinRequestStudent")
+  reviewedRejoinRequests ExamRejoinRequest[] @relation("RejoinRequestReviewer")
+  roleAssignments UserRoleAssignment[]
+  createdExams    Exam[]               @relation("ExamCreator")
+}
+
+model RefreshSession {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  tokenHash   String   @unique
+  userAgent   String?
+  ipAddress   String?
+  revokedAt   DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model QuestionRepository {
+  id          Int              @id @default(autoincrement())
+  name        String
+  description String?          @db.Text
+  status      RepositoryStatus @default(ACTIVE)
+  category    String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  questions   Question[]
+}
+
+model Question {
+  id              Int                @id @default(autoincrement())
+  repositoryId    Int?
+  type            QuestionType
+  content         String             @db.Text
+  options         Json
+  answer          String
+  score           Int                @default(1)
+  analysis        String?            @db.Text
+  difficulty      Int                @default(1)
+  tags            Json?
+  knowledgePoints Json?
+  source          String?
+  status          QuestionStatus     @default(ACTIVE)
+  contentHash     String             @unique
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  repository      QuestionRepository? @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  examQuestions   ExamQuestion[]
+  recordDetails   ExamRecordDetail[]
+}
+
+model Exam {
+  id                  Int             @id @default(autoincrement())
+  title               String
+  description         String?         @db.Text
+  durationMinutes     Int
+  passScore           Int             @default(60)
+  maxAttempts         Int?
+  startsAt            DateTime?
+  endsAt              DateTime?
+  status              ExamStatus      @default(DRAFT)
+  isPublished         Boolean         @default(false)
+  openType            OpenType        @default(PUBLIC)
+  allowedUserIds      Json?
+  allowedRoleIds      Json?
+  allowReview         Boolean         @default(true)
+  shuffleQuestions    Boolean         @default(false)
+  shuffleOptions      Boolean         @default(false)
+  antiCheatEnabled    Boolean         @default(true)
+  antiCheatThreshold  Int             @default(3)
+  showResultMode      ShowResultMode  @default(AFTER_SUBMIT)
+  creatorId           Int?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  creator             User?           @relation("ExamCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  examQuestions       ExamQuestion[]
+  attempts            ExamAttempt[]
+  rejoinRequests      ExamRejoinRequest[]
+}
+
+model ExamQuestion {
+  id              Int      @id @default(autoincrement())
+  examId          Int
+  questionId      Int
+  orderNo         Int
+  scoreOverride   Int?
+  exam            Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question        Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, questionId])
+}
+
+model ExamAttempt {
+  id                       Int                @id @default(autoincrement())
+  examId                   Int
+  userId                   Int
+  attemptNo                Int                @default(1)
+  status                   AttemptStatus      @default(IN_PROGRESS)
+  startedAt                DateTime           @default(now())
+  submittedAt              DateTime?
+  score                    Float?
+  durationSeconds          Int?               @default(0)
+  lastSavedAt              DateTime?
+  forcedSubmitReason       String?
+  antiCheatViolationCount  Int                @default(0)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  exam                     Exam               @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user                     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  details                  ExamRecordDetail[]
+  antiCheatEvents          AntiCheatEvent[]
+  rejoinRequests           ExamRejoinRequest[]
+
+  @@index([examId, userId])
+}
+
+model ExamRecordDetail {
+  id              Int         @id @default(autoincrement())
+  attemptId       Int
+  questionId      Int
+  answer          String?
+  isCorrect       Boolean?
+  score           Float?
+  savedAt         DateTime    @default(now())
+  attempt         ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question        Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+}
+
+model AntiCheatEvent {
+  id              Int         @id @default(autoincrement())
+  attemptId       Int
+  eventType       String
+  message         String?
+  createdAt       DateTime    @default(now())
+  attempt         ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+}
+
+model ExamRejoinRequest {
+  id          Int                 @id @default(autoincrement())
+  attemptId   Int
+  examId      Int
+  studentId   Int
+  reason      String?             @db.Text
+  status      RejoinRequestStatus @default(PENDING)
+  reviewNote  String?             @db.Text
+  reviewedBy  Int?
+  reviewedAt  DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  attempt     ExamAttempt         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  exam        Exam                @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student     User                @relation("RejoinRequestStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  reviewer    User?               @relation("RejoinRequestReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([examId, status])
+  @@index([studentId, status])
+}
+
+model Role {
+  id              Int                  @id @default(autoincrement())
+  code            String               @unique
+  name            String
+  description     String?
+  isSystem        Boolean              @default(false)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  permissions     RolePermission[]
+  userAssignments UserRoleAssignment[]
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  code        String           @unique
+  name        String
+  category    String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id            Int        @id @default(autoincrement())
+  roleId        Int
+  permissionId  Int
+  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRoleAssignment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  roleId    Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+}
